@@ -1,0 +1,37 @@
+.memo-content {
+  width: 100%;
+  overflow-x: hidden;
+}
+
+.memo-content img.memo-img {
+  max-width: 100%;
+  margin: 10px 0;
+  border-radius: 4px;
+  cursor: zoom-in;
+  transition: transform 0.3s ease;
+}
+
+.memo-content img.memo-img:hover {
+  transform: scale(1.02);
+}
+
+/* 图片放大时的遮罩层 */
+.img-zoom-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  cursor: zoom-out;
+}
+
+.img-zoom-overlay img {
+  max-width: 90%;
+  max-height: 90vh;
+  object-fit: contain;
+} 
