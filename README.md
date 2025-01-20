@@ -1,21 +1,22 @@
 # Memo 灵感系统
 
-一个简洁的个人灵感系统，支持 Markdown 格式、图片上传、贡献度统计等功能。
+一个简洁的个人灵感系统，支持 `Markdown` 格式、图片上传、贡献度统计等功能。
 
 ## 项目结构
 
 memobbs/
-├── src/
-│ ├── api/ # API 接口
-│ ├── components/ # 组件
-│ ├── stores/ # 状态管理
-│ ├── types/ # TypeScript 类型
-│ ├── utils/ # 工具函数
-│ └── views/ # 页面视图
-├── server/
-│ ├── src/ # 服务器源码
-│ └── uploads/ # 上传文件存储
-└── public/ # 静态资源
+├─📁 server/----------
+│ ├─📁 data/---------- # 上传文件存储
+│ └─📁 src/----------- # 服务器源码
+│   └─📁 models/------ # 模块
+└─📁 src/-------------
+  ├─📁 api/----------- # API 接口
+  ├─📁 components/---- # 组件
+  ├─📁 router/-------- # 路由
+  ├─📁 stores/-------- # 状态管理
+  ├─📁 types/--------- # TypeScript 类型
+  ├─📁 utils/--------- # 工具函数
+  └─📁 views/--------- # 页面视图
 
 ## 功能特点
 
@@ -38,6 +39,7 @@ memobbs/
 
 ## 控制台
 ![控制台](image-2.png)
+
 ## 技术栈
 
 ### 前端
@@ -54,48 +56,21 @@ memobbs/
 - JWT 认证
 - Multer 文件上传
 
-## 项目结构 
-
-## 主要功能说明
-
-### 1. Memo 发布
-- 支持 Markdown 格式
-- 支持图片上传
-- 实时预览
-- 自动保存
-
-### 2. 贡献度日历
-- 按日期统计记录数
-- 可视化展示
-- 支持日期筛选
-
-### 3. 后台管理
-- 内容管理
-  - 编辑
-  - 删除
-  - 预览
-- 资源管理
-  - 图片预览
-  - 资源删除
-- 数据筛选
-  - 搜索功能
-  - 排序功能
-  - 分页展示
 
 ## 安装部署
 
-1. 克隆项目 
+### 克隆项目 
     git clone https://github.com/your-repo/memobbs.git
-2. 安装依赖
+### 安装依赖
     cd memobbs
     npm install
-3. 配置环境变量 
+### 配置环境变量 
     cp .env.example .env
-4. 启动前端和后端
+### 启动前端和后端
     npm run dev/cd server && npm run server
-5. 访问 http://localhost:3000 接口即可使用
-6. 访问 http://localhost:5174/ 前台展示即可使用
-7. 访问 http://localhost:5174/admin 后台管理即可使用
+    访问 http://localhost:3000 接口即可使用
+    访问 http://localhost:5174/ 前台展示即可使用
+    访问 http://localhost:5174/admin 后台管理即可使用
 
 ## API 文档
 
@@ -110,7 +85,7 @@ memobbs/
 - `PUT /api/memos/:id` - 更新记录
 - `DELETE /api/memos/:id` - 删除记录
 
-## 开发计划
+## 未来开发计划
 
 - [ ] 标签管理功能
 - [ ] 评论系统
@@ -126,3 +101,25 @@ memobbs/
 ## 许可证
 
 [MIT License](LICENSE)
+## 问题相关
+
+有任何问题欢迎提Issue,或者将问题描述发送至我邮箱 `gaviny.ge@gmail.com`.我会尽快解答.推荐提交Issue方式.  
+
+---
+ ## 致大家🙋‍♀️🙋‍♂️
+ 如果本项目帮助到了你，请在[这里](https://github.com/ximuer360/Memos/issues/2)留下你的网址，让更多的人看到。
+您的回复将会是我继续更新维护下去的动力。 
+
+
+## 捐赠
+如果您觉得本项目对您有所帮助，欢迎您请我喝杯咖啡，您的支持是我最大的动力，您可以扫描下方二维码为我付款，谢谢。
+### 支付宝：
+<div>    
+<img src="image-3.png" width="150" height="150" />
+</div>  
+
+### 微信：
+<div>    
+<img src="image-4.png" width="150" height="150" />
+</div>
+

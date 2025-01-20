@@ -188,7 +188,6 @@ app.get('/api/memos', async (req, res) => {
   try {
     const memos = await Memo.find()
       .sort({ createdAt: -1 })
-      .collation({ locale: 'en' })
       .exec()
     res.json(memos)
   } catch (error) {
@@ -318,10 +317,11 @@ app.get('/api/memos/stats/:year/:month', async (req, res) => {
   }
 })
 
-// 修改按日期获取记录的路由
+// 修改获取指定日期记录的路由
 app.get('/api/memos/date/:date', async (req, res) => {
   try {
-    const datePrefix = req.params.date
+    // 使用字符串匹配查询
+    const datePrefix = req.params.date // 形如 "2025-01-20"
     const startTimeStr = `${datePrefix}T00:00:00+08:00`
     const endTimeStr = `${datePrefix}T23:59:59.999+08:00`
     
@@ -336,10 +336,7 @@ app.get('/api/memos/date/:date', async (req, res) => {
         $gte: startTimeStr,
         $lte: endTimeStr
       }
-    })
-    .sort({ createdAt: -1 })
-    .collation({ locale: 'en' })
-    .exec()
+    }).sort({ createdAt: -1 })
     
     console.log(`Found ${memos.length} memos for date ${datePrefix}`)
     res.json(memos)
@@ -388,7 +385,7 @@ app.put('/api/memos/:id', authenticateToken, async (req, res) => {
       { 
         content: processedContent,
         resources: resources || [],
-        updatedAt: timeStr,
+        updatedAt: timeStr
       },
       { new: true }
     )

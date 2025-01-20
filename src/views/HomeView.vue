@@ -16,7 +16,7 @@
       </div>
       <div v-if="loading" class="loading">加载中...</div>
       <div v-else-if="error" class="error">{{ error }}</div>
-      <MemoList v-else :memos="memos" />
+      <MemoList v-else :memos="selectedDateMemos.length > 0 ? selectedDateMemos : memos" />
     </div>
     <div class="sidebar">
       <ContributionCalendar @dateSelect="handleDateSelect" />
@@ -41,9 +41,22 @@ const {
   clearDateFilter 
 } = useMemoStore()
 
+const selectedDateMemos = ref([])
+
 const handleDateSelect = async (date: string) => {
   selectedDate.value = date
-  await fetchMemosByDate(date)
+  try {
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/memos/date/${date}`)
+    if (!response.ok) {
+      throw new Error('Failed to fetch memos')
+    }
+    const data = await response.json()
+    selectedDateMemos.value = data
+    console.log('Fetched memos for date:', date, data)
+  } catch (error) {
+    console.error('Error fetching memos:', error)
+    selectedDateMemos.value = []
+  }
 }
 
 const formatDisplayDate = (date: string) => {
@@ -121,5 +134,32 @@ const formatDisplayDate = (date: string) => {
 
 .clear-filter:hover {
   background: #f5f5f5;
+}
+
+.selected-date-memos {
+  margin-top: 20px;
+  padding: 16px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.memos-list {
+  margin-top: 16px;
+}
+
+.memo-item {
+  padding: 16px;
+  border-bottom: 1px solid #eee;
+}
+
+.memo-item:last-child {
+  border-bottom: none;
+}
+
+.no-memos {
+  color: #999;
+  text-align: center;
+  padding: 20px;
 }
 </style> 
