@@ -113,16 +113,55 @@
             rows="10"
             placeholder="编辑内容..."
           ></textarea>
+          
+          <!-- 添加图片上传功能 -->
+          <div class="editor-toolbar">
+            <input
+              type="file"
+              ref="fileInput"
+              @change="handleFileChange"
+              accept="image/*"
+              class="hidden"
+              multiple
+            >
+            <button class="toolbar-btn" @click="triggerFileInput">
+              <i class="fas fa-image"></i>
+              添加图片
+            </button>
+            <!-- 添加上传进度条 -->
+            <div v-if="uploadProgress > 0 && uploadProgress < 100" class="upload-progress">
+              <div class="progress-bar" :style="{ width: uploadProgress + '%' }"></div>
+              <span class="progress-text">{{ uploadProgress }}%</span>
+            </div>
+          </div>
+
+          <!-- 现有资源预览和管理 -->
           <div class="resources-edit" v-if="editingMemo.resources.length">
             <h4>附件资源：</h4>
             <div class="resource-list">
-              <div v-for="(resource, index) in editingMemo.resources" :key="resource.url" class="resource-item">
-                <img v-if="resource.type.startsWith('image/')" :src="resource.url" :alt="resource.name">
-                <a v-else :href="resource.url" target="_blank">{{ resource.name }}</a>
-                <button class="remove-resource" @click="removeResource(index)">×</button>
+              <div v-for="(resource, index) in editingMemo.resources" 
+                   :key="resource.url" 
+                   class="resource-item"
+                   draggable="true"
+                   @dragstart="handleDragStart(index)"
+                   @dragover="handleDragOver"
+                   @drop="handleDrop(index)">
+                <div class="resource-preview">
+                  <div class="drag-handle">⋮⋮</div>
+                  <img 
+                    v-if="resource.type.startsWith('image/')" 
+                    :src="resource.url" 
+                    :alt="resource.name"
+                  >
+                  <a v-else :href="resource.url" target="_blank">{{ resource.name }}</a>
+                </div>
+                <div class="resource-actions">
+                  <button class="remove-resource" @click="removeResource(index)">删除</button>
+                </div>
               </div>
             </div>
           </div>
+
           <div class="edit-actions">
             <button class="btn-primary" @click="saveEdit" :disabled="saving">
               {{ saving ? '保存中...' : '保存' }}
@@ -136,7 +175,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import type { Memo } from '../types/memo'
 import { formatDate } from '../utils/date'
 import { useMemoStore } from '../stores/memos'
@@ -150,6 +189,9 @@ const selectedMemo = ref<Memo | null>(null)
 const previewImageUrl = ref<string | null>(null)
 const editingMemo = ref<Memo | null>(null)
 const saving = ref(false)
+const fileInput = ref<HTMLInputElement | null>(null)
+const uploadProgress = ref(0)
+const draggedItem = ref<number | null>(null)
 
 const { loading, error } = memoStore
 
@@ -283,6 +325,103 @@ const saveEdit = async () => {
     saving.value = false
   }
 }
+
+// 触发文件选择
+const triggerFileInput = () => {
+  fileInput.value?.click()
+}
+
+// 修改文件上传函数,添加进度监控
+const handleFileUpload = async (file: File) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  
+  try {
+    uploadProgress.value = 0
+    
+    const xhr = new XMLHttpRequest()
+    
+    // 监听上传进度
+    xhr.upload.addEventListener('progress', (e) => {
+      if (e.lengthComputable) {
+        uploadProgress.value = Math.round((e.loaded * 100) / e.total)
+      }
+    })
+    
+    const response = await new Promise((resolve, reject) => {
+      xhr.open('POST', `${import.meta.env.VITE_API_URL}/api/resources`)
+      
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(JSON.parse(xhr.response))
+        } else {
+          reject(new Error(`Upload failed: ${xhr.status}`))
+        }
+      }
+      
+      xhr.onerror = () => reject(new Error('Network error'))
+      xhr.send(formData)
+    })
+    
+    if (editingMemo.value) {
+      editingMemo.value.resources.push({
+        url: response.url,
+        name: response.name,
+        type: response.type,
+        size: response.size
+      })
+    }
+    
+    uploadProgress.value = 100
+    setTimeout(() => {
+      uploadProgress.value = 0
+    }, 1000)
+  } catch (e) {
+    console.error('Upload error:', e)
+    alert('图片上传失败')
+    uploadProgress.value = 0
+  }
+}
+
+// 处理文件选择
+const handleFileChange = async (event: Event) => {
+  const input = event.target as HTMLInputElement
+  if (!input.files?.length) return
+
+  for (const file of Array.from(input.files)) {
+    await handleFileUpload(file)
+  }
+  
+  input.value = '' // 清除选择的文件
+}
+
+// 添加拖拽相关的方法
+const handleDragStart = (index: number) => {
+  draggedItem.value = index
+}
+
+const handleDragOver = (e: DragEvent) => {
+  e.preventDefault()
+}
+
+const handleDrop = (index: number) => {
+  if (draggedItem.value === null || !editingMemo.value) return
+  
+  const resources = [...editingMemo.value.resources]
+  const [moved] = resources.splice(draggedItem.value, 1)
+  resources.splice(index, 0, moved)
+  editingMemo.value.resources = resources
+  draggedItem.value = null
+}
+
+onMounted(() => {
+  // 添加拖拽相关的样式
+  const resourceList = document.querySelector('.resource-list')
+  if (resourceList) {
+    resourceList.style.cursor = 'move'
+    resourceList.style.transition = 'transform 0.2s'
+  }
+})
 </script>
 
 <style scoped>
@@ -499,19 +638,125 @@ textarea {
   color: var(--text-color);
 }
 
+.editor-toolbar {
+  margin: 16px 0;
+  padding: 8px 0;
+  border-top: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+}
+
+.hidden {
+  display: none;
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.toolbar-btn:hover {
+  background: #e6f4ff;
+  border-color: #1890ff;
+  color: #1890ff;
+}
+
+.resource-preview {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.resource-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.resource-actions {
+  margin-top: 8px;
+  text-align: center;
+}
+
 .remove-resource {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  background: rgba(255, 77, 79, 0.8);
+  padding: 4px 8px;
+  background: #ff4d4f;
   color: white;
   border: none;
-  border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  border-radius: 4px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+}
+
+.remove-resource:hover {
+  background: #ff7875;
+}
+
+.resource-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.resource-item {
+  cursor: move;
+  transition: transform 0.2s;
+}
+
+.resource-item:hover {
+  transform: scale(1.02);
+}
+
+.resource-item.dragging {
+  opacity: 0.5;
+}
+
+.upload-progress {
+  margin-left: 12px;
+  flex: 1;
+  height: 4px;
+  background: #f0f0f0;
+  border-radius: 2px;
+  overflow: hidden;
+  position: relative;
+}
+
+.progress-bar {
+  height: 100%;
+  background: #1890ff;
+  transition: width 0.3s ease;
+}
+
+.progress-text {
+  position: absolute;
+  right: 0;
+  top: -20px;
+  font-size: 12px;
+  color: #666;
+}
+
+.drag-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-radius: 4px;
+  cursor: move;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.resource-preview:hover .drag-handle {
+  opacity: 1;
 }
 </style> 

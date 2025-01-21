@@ -9,6 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/sortablejs": "^1.15.8",
+    "@vueuse/core": "^12.4.0",
+    "sortablejs": "^1.15.6",
     "vue": "^3.4.0",
     "vue-router": "^4.5.0"
   },
