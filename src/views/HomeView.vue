@@ -75,12 +75,11 @@ const handleCreate = async (content: string, resources: any[], tags: string[]) =
       const memoDate = new Date(newMemo.createdAt).toISOString().split('T')[0]
       // 如果新创建的记录日期与当前选中日期相同，则添加到列表中
       if (memoDate === selectedDate.value) {
-        selectedDateMemos.value.unshift(newMemo)
+        // 确保 selectedDateMemos 是响应式的
+        selectedDateMemos.value = [newMemo, ...selectedDateMemos.value]
       }
-    } else {
-      // 如果显示的是全部记录，直接添加到列表开头
-      memos.value.unshift(newMemo)
     }
+    // 不再需要手动添加到 memos，因为 store 已经处理了
   } catch (error) {
     console.error('Failed to create memo:', error)
   }

@@ -63,7 +63,11 @@ export const useMemoStore = () => {
     error.value = null
     try {
       const newMemo = await memoApi.createMemo(content, resources)
-      memos.value.unshift(newMemo)
+      // 只在 store 中添加新记录
+      if (!selectedDate.value) {
+        // 只有在显示全部记录时才添加到列表开头
+        memos.value = [newMemo, ...memos.value]
+      }
       return newMemo
     } catch (e) {
       console.error(e)
