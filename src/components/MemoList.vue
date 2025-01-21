@@ -7,38 +7,108 @@
           <img v-if="resource.type.startsWith('image/')" 
                :src="resource.url" 
                :alt="resource.name"
-               @click="showImage(resource.url)"
-               @error="handleImageError">
+               @click="showImage(memo.resources, resource.url)">
         </div>
       </div>
       <div class="memo-meta">
         <span class="memo-time">{{ formatDate(memo.createdAt) }}</span>
       </div>
     </div>
-    <ImageViewer ref="imageViewer" />
+
+    <!-- 图片预览弹窗 -->
+    <div v-if="previewVisible" class="image-viewer" @click="closePreview">
+      <button class="nav-btn prev" @click.stop="prevImage" v-show="currentIndex > 0">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+      
+      <img :src="currentImage" :alt="currentImage" @click.stop>
+      
+      <button class="nav-btn next" @click.stop="nextImage" 
+              v-show="currentIndex < totalImages - 1">
+        <i class="fas fa-chevron-right"></i>
+      </button>
+
+      <div class="preview-counter">
+        {{ currentIndex + 1 }} / {{ totalImages }}
+      </div>
+
+      <button class="close-btn" @click.stop="closePreview">×</button>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import type { Memo } from '../types/memo'
 import { formatDate } from '../utils/date'
-import ImageViewer from './ImageViewer.vue'
 
 defineProps<{
   memos: Memo[]
 }>()
 
-const imageViewer = ref<InstanceType<typeof ImageViewer> | null>(null)
+const previewVisible = ref(false)
+const currentImage = ref('')
+const currentImages = ref<string[]>([])
+const currentIndex = ref(0)
 
-const showImage = (url: string) => {
-  imageViewer.value?.show(url)
+const totalImages = computed(() => currentImages.value.length)
+
+const showImage = (resources: any[], clickedUrl: string) => {
+  // 过滤出所有图片资源的URL
+  currentImages.value = resources
+    .filter(r => r.type.startsWith('image/'))
+    .map(r => r.url)
+  
+  // 设置当前图片索引
+  currentIndex.value = currentImages.value.findIndex(url => url === clickedUrl)
+  currentImage.value = clickedUrl
+  previewVisible.value = true
 }
 
-const handleImageError = (e: Event) => {
-  const img = e.target as HTMLImageElement
-  console.error('Image failed to load:', img.src)
+const closePreview = () => {
+  previewVisible.value = false
 }
+
+const prevImage = () => {
+  if (currentIndex.value > 0) {
+    currentIndex.value--
+    currentImage.value = currentImages.value[currentIndex.value]
+  }
+}
+
+const nextImage = () => {
+  if (currentIndex.value < currentImages.value.length - 1) {
+    currentIndex.value++
+    currentImage.value = currentImages.value[currentIndex.value]
+  }
+}
+
+// 添加键盘事件监听
+const handleKeydown = (e: KeyboardEvent) => {
+  if (!previewVisible.value) return
+  
+  switch (e.key) {
+    case 'ArrowLeft':
+      prevImage()
+      break
+    case 'ArrowRight':
+      nextImage()
+      break
+    case 'Escape':
+      closePreview()
+      break
+  }
+}
+
+// 挂载时添加键盘事件监听
+onMounted(() => {
+  window.addEventListener('keydown', handleKeydown)
+})
+
+// 卸载时移除键盘事件监听
+onUnmounted(() => {
+  window.removeEventListener('keydown', handleKeydown)
+})
 </script>
 
 <style scoped>
@@ -196,5 +266,82 @@ const handleImageError = (e: Event) => {
 
 .markdown-body :deep(.hljs-function) {
   color: #6f42c1;
+}
+
+.image-viewer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.image-viewer img {
+  max-width: 90%;
+  max-height: 90vh;
+  object-fit: contain;
+}
+
+.nav-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.3s;
+}
+
+.nav-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.prev {
+  left: 20px;
+}
+
+.next {
+  right: 20px;
+}
+
+.close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  border: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.preview-counter {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  background: rgba(0, 0, 0, 0.5);
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 14px;
 }
 </style> 
