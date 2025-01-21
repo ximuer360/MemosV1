@@ -64,6 +64,7 @@ export const useMemoStore = () => {
     try {
       const newMemo = await memoApi.createMemo(content, resources)
       memos.value.unshift(newMemo)
+      return newMemo
     } catch (e) {
       console.error(e)
       error.value = '创建失败'

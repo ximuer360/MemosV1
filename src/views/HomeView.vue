@@ -1,7 +1,7 @@
 <template>
   <div class="home">
     <div class="main-content">
-      <MemoEditor @create="createMemo" />
+      <MemoEditor @create="handleCreate" />
       <div class="memo-header">
         <h2>
           {{ selectedDate ? `${formatDisplayDate(selectedDate)}的记录` : '全部记录' }}
@@ -65,6 +65,25 @@ const formatDisplayDate = (date: string) => {
     month: 'long',
     day: 'numeric'
   })
+}
+
+const handleCreate = async (content: string, resources: any[], tags: string[]) => {
+  try {
+    const newMemo = await createMemo(content, resources, tags)
+    // 如果当前显示的是按日期筛选的记录
+    if (selectedDate.value) {
+      const memoDate = new Date(newMemo.createdAt).toISOString().split('T')[0]
+      // 如果新创建的记录日期与当前选中日期相同，则添加到列表中
+      if (memoDate === selectedDate.value) {
+        selectedDateMemos.value.unshift(newMemo)
+      }
+    } else {
+      // 如果显示的是全部记录，直接添加到列表开头
+      memos.value.unshift(newMemo)
+    }
+  } catch (error) {
+    console.error('Failed to create memo:', error)
+  }
 }
 </script>
 

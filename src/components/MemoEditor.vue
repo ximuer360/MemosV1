@@ -23,13 +23,23 @@
       </div>
     </div>
     <div class="preview" v-if="uploadedFiles.length">
-      <div v-for="file in uploadedFiles" :key="file.url" class="preview-item">
-        <img 
-          :src="file.url" 
-          :alt="file.name"
-          @error="(e) => { console.error('Preview image load error:', e); }"
-        >
-        <button class="remove-btn" @click="removeFile(file)">×</button>
+      <div class="preview-list"
+           @dragover="handleDragOver"
+      >
+        <div v-for="(file, index) in uploadedFiles" 
+             :key="file.url" 
+             class="preview-item"
+             draggable="true"
+             @dragstart="handleDragStart(index)"
+             @drop="handleDrop(index)">
+          <img 
+            :src="file.url" 
+            :alt="file.name"
+            @error="(e) => { console.error('Preview image load error:', e); }"
+          >
+          <div class="drag-handle">⋮⋮</div>
+          <button class="remove-btn" @click="removeFile(file)">×</button>
+        </div>
       </div>
     </div>
     <div class="actions">
@@ -53,6 +63,7 @@ const error = ref('')
 const isSubmitting = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploadedFiles = ref<Array<{ url: string, name: string, type: string, size: number }>>([])
+const draggedItem = ref<number | null>(null)
 
 const emit = defineEmits<{
   (e: 'create', content: string, resources: Array<{ url: string, name: string, type: string, size: number }>): void
@@ -153,6 +164,24 @@ const handleSubmit = async () => {
     isSubmitting.value = false
   }
 }
+
+const handleDragStart = (index: number) => {
+  draggedItem.value = index
+}
+
+const handleDragOver = (e: DragEvent) => {
+  e.preventDefault()
+}
+
+const handleDrop = (index: number) => {
+  if (draggedItem.value === null) return
+  
+  const files = [...uploadedFiles.value]
+  const [moved] = files.splice(draggedItem.value, 1)
+  files.splice(index, 0, moved)
+  uploadedFiles.value = files
+  draggedItem.value = null
+}
 </script>
 
 <style scoped>
@@ -207,6 +236,12 @@ textarea {
   margin-top: 8px;
 }
 
+.preview-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .preview-item {
   position: relative;
   width: 100px;
@@ -214,12 +249,40 @@ textarea {
   border-radius: 4px;
   overflow: hidden;
   border: 1px solid #eee;
+  cursor: move;
+  transition: transform 0.2s;
 }
 
 .preview-item img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.preview-item:hover {
+  transform: scale(1.05);
+}
+
+.preview-item.dragging {
+  opacity: 0.5;
+}
+
+.drag-handle {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  padding: 2px 4px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border-radius: 4px;
+  cursor: move;
+  font-size: 12px;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.preview-item:hover .drag-handle {
+  opacity: 1;
 }
 
 .remove-btn {
