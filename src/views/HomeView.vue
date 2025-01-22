@@ -4,22 +4,43 @@
       <MemoEditor @create="handleCreate" />
       <div class="memo-header">
         <h2>
-          {{ selectedDate ? `${formatDisplayDate(selectedDate)}的记录` : '全部记录' }}
+          {{ getHeaderText }}
           <button 
-            v-if="selectedDate" 
+            v-if="selectedDate || selectedTag" 
             class="clear-filter"
-            @click="clearDateFilter"
+            @click="clearFilters"
           >
             显示全部
           </button>
         </h2>
+        <div v-if="selectedTag" class="current-tag">
+          #{{ selectedTag }}
+        </div>
       </div>
       <div v-if="loading" class="loading">加载中...</div>
       <div v-else-if="error" class="error">{{ error }}</div>
-      <MemoList v-else :memos="selectedDateMemos.length > 0 ? selectedDateMemos : memos" />
+      <MemoList 
+        v-else 
+        :memos="filteredMemos" 
+        @tagClick="handleTagClick"
+      />
     </div>
     <div class="sidebar">
       <ContributionCalendar @dateSelect="handleDateSelect" />
+      <div v-if="allTags.length" class="tags-cloud">
+        <h3>标签云</h3>
+        <div class="tags-list">
+          <span 
+            v-for="tag in allTags" 
+            :key="tag"
+            :class="['tag', { active: selectedTag === tag }]"
+            @click="handleTagClick(tag)"
+          >
+            #{{ tag }}
+            <span class="tag-count">{{ getTagCount(tag) }}</span>
+          </span>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -29,7 +50,7 @@ import { useMemoStore } from '../stores/memos'
 import MemoEditor from '../components/MemoEditor.vue'
 import MemoList from '../components/MemoList.vue'
 import ContributionCalendar from '../components/ContributionCalendar.vue'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 
 const { 
   memos, 
@@ -42,6 +63,36 @@ const {
 } = useMemoStore()
 
 const selectedDateMemos = ref([])
+const selectedTag = ref<string | null>(null)
+
+const allTags = computed(() => {
+  const tags = new Set<string>()
+  memos.value.forEach(memo => {
+    memo.tags?.forEach(tag => tags.add(tag))
+  })
+  return Array.from(tags)
+})
+
+const filteredMemos = computed(() => {
+  let result = memos.value
+
+  if (selectedTag.value) {
+    result = result.filter(memo => memo.tags?.includes(selectedTag.value!))
+  }
+
+  if (selectedDate.value) {
+    const date = new Date(selectedDate.value)
+    const nextDate = new Date(date)
+    nextDate.setDate(date.getDate() + 1)
+    
+    result = result.filter(memo => {
+      const memoDate = new Date(memo.createdAt)
+      return memoDate >= date && memoDate < nextDate
+    })
+  }
+
+  return result
+})
 
 const handleDateSelect = async (date: string) => {
   selectedDate.value = date
@@ -69,20 +120,55 @@ const formatDisplayDate = (date: string) => {
 
 const handleCreate = async (content: string, resources: any[], tags: string[]) => {
   try {
-    const newMemo = await createMemo(content, resources, tags)
-    // 如果当前显示的是按日期筛选的记录
+    // 确保资源数据结构正确
+    const processedResources = resources.map(resource => ({
+      url: resource.url,
+      name: resource.name,
+      type: resource.type,
+      size: resource.size
+    }))
+
+    const newMemo = await createMemo(content, processedResources, tags)
     if (selectedDate.value) {
       const memoDate = new Date(newMemo.createdAt).toISOString().split('T')[0]
-      // 如果新创建的记录日期与当前选中日期相同，则添加到列表中
       if (memoDate === selectedDate.value) {
-        // 确保 selectedDateMemos 是响应式的
         selectedDateMemos.value = [newMemo, ...selectedDateMemos.value]
       }
     }
-    // 不再需要手动添加到 memos，因为 store 已经处理了
   } catch (error) {
     console.error('Failed to create memo:', error)
   }
+}
+
+const handleTagClick = (tag: string) => {
+  if (selectedTag.value === tag) {
+    selectedTag.value = null
+  } else {
+    selectedTag.value = tag
+  }
+}
+
+const clearFilters = () => {
+  selectedTag.value = null
+  selectedDate.value = null
+  selectedDateMemos.value = []
+}
+
+const getHeaderText = computed(() => {
+  if (selectedTag.value && selectedDate.value) {
+    return `${formatDisplayDate(selectedDate.value)}的 #${selectedTag.value} 记录`
+  }
+  if (selectedTag.value) {
+    return `标签: #${selectedTag.value}`
+  }
+  if (selectedDate.value) {
+    return `${formatDisplayDate(selectedDate.value)}的记录`
+  }
+  return '全部记录'
+})
+
+const getTagCount = (tag: string) => {
+  return memos.value.filter(memo => memo.tags?.includes(tag)).length
 }
 </script>
 
@@ -179,5 +265,62 @@ const handleCreate = async (content: string, resources: any[], tags: string[]) =
   color: #999;
   text-align: center;
   padding: 20px;
+}
+
+.tags-cloud {
+  background: white;
+  border-radius: 8px;
+  padding: 16px;
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.tags-cloud h3 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  padding: 4px 8px;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #666;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tag:hover {
+  background: #e6f4ff;
+  color: #1890ff;
+}
+
+.tag.active {
+  background: #1890ff;
+  color: white;
+}
+
+.current-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  background: #e6f4ff;
+  color: #1890ff;
+  border-radius: 16px;
+  font-size: 14px;
+  margin-left: 12px;
+}
+
+.tag-count {
+  font-size: 12px;
+  margin-left: 4px;
+  opacity: 0.7;
 }
 </style> 

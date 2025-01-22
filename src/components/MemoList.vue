@@ -2,12 +2,21 @@
   <div class="memo-list">
     <div v-for="memo in memos" :key="memo._id" class="memo-item">
       <div class="memo-content markdown-body" v-html="memo.content.html"></div>
+      <div v-if="memo.tags?.length" class="memo-tags">
+        <span v-for="tag in memo.tags" 
+              :key="tag" 
+              class="tag"
+              @click="$emit('tagClick', tag)">
+          #{{ tag }}
+        </span>
+      </div>
       <div class="memo-resources" v-if="memo.resources?.length">
         <div v-for="resource in memo.resources" :key="resource.url" class="resource-item">
-          <img v-if="resource.type.startsWith('image/')" 
+          <img v-if="resource.type?.startsWith('image/')" 
                :src="resource.url" 
                :alt="resource.name"
-               @click="showImage(memo.resources, resource.url)">
+               @click="showImage(memo.resources, resource.url)"
+               @error="handleImageError">
         </div>
       </div>
       <div class="memo-meta">
@@ -45,6 +54,8 @@ import { formatDate } from '../utils/date'
 defineProps<{
   memos: Memo[]
 }>()
+
+defineEmits(['tagClick'])  // 添加 tagClick 事件
 
 const previewVisible = ref(false)
 const currentImage = ref('')
@@ -109,6 +120,12 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeydown)
 })
+
+// 添加图片错误处理
+const handleImageError = (e: Event) => {
+  const img = e.target as HTMLImageElement
+  console.error('Image failed to load:', img.src)
+}
 </script>
 
 <style scoped>
@@ -343,5 +360,26 @@ onUnmounted(() => {
   padding: 4px 12px;
   border-radius: 12px;
   font-size: 14px;
+}
+
+.memo-tags {
+  margin: 8px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tag {
+  color: #1890ff;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 2px 8px;
+  background: #e6f4ff;
+  border-radius: 4px;
+}
+
+.tag:hover {
+  background: #1890ff;
+  color: white;
 }
 </style> 

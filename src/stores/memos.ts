@@ -58,19 +58,21 @@ export const useMemoStore = () => {
     await fetchMemos()
   }
 
-  const createMemo = async (content: string, resources: Array<{ url: string, name: string, type: string, size: number }>) => {
+  const createMemo = async (
+    content: string, 
+    resources: Array<{ url: string, name: string, type: string, size: number }>,
+    tags: string[]
+  ) => {
     loading.value = true
     error.value = null
     try {
-      const newMemo = await memoApi.createMemo(content, resources)
-      // 只在 store 中添加新记录
+      const newMemo = await memoApi.createMemo(content, resources, tags)
       if (!selectedDate.value) {
-        // 只有在显示全部记录时才添加到列表开头
         memos.value = [newMemo, ...memos.value]
       }
       return newMemo
     } catch (e) {
-      console.error(e)
+      console.error('Create memo error:', e)
       error.value = '创建失败'
       throw e
     } finally {
@@ -100,33 +102,27 @@ export const useMemoStore = () => {
     }
   }
 
-  const updateMemo = async (id: string, content: string, resources: any[]) => {
+  const updateMemo = async (
+    id: string,
+    content: string,
+    resources: Array<{ url: string, name: string, type: string, size: number }>,
+    tags: string[]
+  ): Promise<Memo> => {
+    loading.value = true
+    error.value = null
     try {
-      const authStore = useAuthStore()
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/memos/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': authStore.getAuthHeader()
-        },
-        body: JSON.stringify({ content, resources })
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        throw new Error(data.error || data.details || '更新失败')
-      }
-
+      const updatedMemo = await memoApi.updateMemo(id, content, resources, tags)
       const index = memos.value.findIndex(memo => memo._id === id)
       if (index !== -1) {
-        memos.value[index] = data
+        memos.value[index] = updatedMemo
       }
-
-      return data
+      return updatedMemo
     } catch (e: any) {
-      console.error('Update error:', e)
-      throw new Error(e.message || '更新失败')
+      console.error('Update memo error:', e)
+      error.value = e.message || '更新失败'
+      throw e
+    } finally {
+      loading.value = false
     }
   }
 

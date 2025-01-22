@@ -1,12 +1,12 @@
 import mongoose from 'mongoose'
 
+// 定义资源 Schema
 const resourceSchema = new mongoose.Schema({
-  type: String,
-  name: String,
-  url: String,
-  size: Number,
-  createdAt: { type: Date, default: Date.now }
-})
+  url: { type: String, required: true },
+  name: { type: String, required: true },
+  type: { type: String, required: true },
+  size: { type: Number, required: true }
+}, { _id: false }) // 禁用资源的 _id
 
 const memoSchema = new mongoose.Schema({
   content: {
@@ -14,12 +14,7 @@ const memoSchema = new mongoose.Schema({
     html: String,     // 渲染后的 HTML
     text: String      // 纯文本（用于搜索）
   },
-  resources: [{
-    type: { type: String },
-    name: String,
-    url: String,
-    size: Number
-  }],
+  resources: [resourceSchema], // 使用资源 Schema 数组
   tags: [String],
   visibility: {
     type: String,

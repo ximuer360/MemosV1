@@ -8,6 +8,25 @@
         :disabled="isSubmitting"
         @paste="handlePaste"
       ></textarea>
+      
+      <!-- 添加标签输入区域 -->
+      <div class="tags-input">
+        <div class="tags-list">
+          <span v-for="tag in tags" :key="tag" class="tag">
+            {{ tag }}
+            <button @click="removeTag(tag)" class="remove-tag">×</button>
+          </span>
+        </div>
+        <input
+          v-model="tagInput"
+          @keydown.enter.prevent="addTag"
+          @keydown.space.prevent="addTag"
+          @keydown.tab.prevent="addTag"
+          placeholder="输入标签，回车添加"
+          type="text"
+        >
+      </div>
+
       <div class="editor-toolbar">
         <input
           type="file"
@@ -64,9 +83,11 @@ const isSubmitting = ref(false)
 const fileInput = ref<HTMLInputElement | null>(null)
 const uploadedFiles = ref<Array<{ url: string, name: string, type: string, size: number }>>([])
 const draggedItem = ref<number | null>(null)
+const tags = ref<string[]>([])
+const tagInput = ref('')
 
 const emit = defineEmits<{
-  (e: 'create', content: string, resources: Array<{ url: string, name: string, type: string, size: number }>): void
+  (e: 'create', content: string, resources: Array<{ url: string, name: string, type: string, size: number }>, tags: string[]): void
 }>()
 
 const triggerFileInput = () => {
@@ -145,6 +166,18 @@ const handlePaste = async (event: ClipboardEvent) => {
   }
 }
 
+const addTag = () => {
+  const tag = tagInput.value.trim()
+  if (tag && !tags.value.includes(tag)) {
+    tags.value.push(tag)
+  }
+  tagInput.value = ''
+}
+
+const removeTag = (tag: string) => {
+  tags.value = tags.value.filter(t => t !== tag)
+}
+
 const handleSubmit = async () => {
   if (!content.value.trim()) return
   
@@ -152,10 +185,21 @@ const handleSubmit = async () => {
   error.value = ''
   
   try {
-    console.log('Submitting with resources:', uploadedFiles.value)
-    await emit('create', content.value, uploadedFiles.value)
+    // 确保资源数据结构正确
+    const processedResources = uploadedFiles.value.map(file => ({
+      url: file.url,
+      name: file.name,
+      type: file.type,
+      size: file.size
+    }))
+    
+    // 确保标签是字符串数组
+    const processedTags = tags.value.map(tag => String(tag))
+    
+    await emit('create', content.value, processedResources, processedTags)
     content.value = ''
     uploadedFiles.value = []
+    tags.value = []
     error.value = ''
   } catch (e) {
     console.error('Failed to create memo:', e)
@@ -326,5 +370,54 @@ textarea {
 .submit-btn:disabled {
   background: #ccc;
   cursor: not-allowed;
+}
+
+.tags-input {
+  margin-top: 8px;
+  border-top: 1px solid #eee;
+  padding-top: 8px;
+}
+
+.tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  background: #e6f4ff;
+  color: #1890ff;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.remove-tag {
+  background: none;
+  border: none;
+  color: #1890ff;
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.remove-tag:hover {
+  color: #ff4d4f;
+}
+
+input[type="text"] {
+  width: 100%;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+input[type="text"]:focus {
+  outline: none;
+  border-color: #1890ff;
 }
 </style> 

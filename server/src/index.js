@@ -10,9 +10,9 @@ import { marked } from 'marked'
 import highlight from 'highlight.js'
 import sanitizeHtml from 'sanitize-html'
 import dotenv from 'dotenv'
-import { Memo } from './models/memo.js'
 import { networkInterfaces } from 'os'
 import jwt from 'jsonwebtoken'
+import { Memo } from './models/memo.js'
 
 // 指定 .env 文件的路径
 const envPath = resolve(process.cwd(), '.env')
@@ -155,31 +155,82 @@ app.use(cors({
 }))
 app.use(express.json())
 
+// 添加刷新 token 的函数
+const generateToken = (user) => {
+  return jwt.sign(
+    { username: user.username, role: 'admin' },
+    process.env.JWT_SECRET,
+    { expiresIn: '7d' }  // 延长 token 有效期到 7 天
+  )
+}
+
+// 修改验证 token 的中间件
+const authenticateToken = async (req, res, next) => {
+  const authHeader = req.headers['authorization']
+  const token = authHeader && authHeader.split(' ')[1]
+
+  if (!token) {
+    return res.status(401).json({ error: 'No token provided' })
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET)
+    req.user = decoded
+
+    // 检查 token 是否即将过期（比如还有 1 小时就过期）
+    const tokenExp = decoded.exp * 1000 // 转换为毫秒
+    const now = Date.now()
+    const oneHour = 60 * 60 * 1000
+
+    if (tokenExp - now < oneHour) {
+      // 生成新的 token
+      const newToken = jwt.sign(
+        { username: decoded.username, role: 'admin' },
+        process.env.JWT_SECRET,
+        { expiresIn: '7d' }
+      )
+      // 在响应头中返回新的 token
+      res.setHeader('X-New-Token', newToken)
+    }
+
+    next()
+  } catch (error) {
+    console.error('Token verification error:', error)
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ 
+        error: 'Token expired',
+        code: 'TOKEN_EXPIRED'
+      })
+    }
+    return res.status(401).json({ error: 'Invalid token' })
+  }
+}
+
 // 2. 认证相关路由
 app.post('/api/auth/login', async (req, res) => {
-  const { username, password } = req.body
-  
-  console.log('Login attempt details:', {
-    receivedUsername: username,
-    receivedPassword: password,
-    adminUsername: process.env.ADMIN_USERNAME,
-    adminPassword: process.env.ADMIN_PASSWORD
-  })
-  
-  if (username === process.env.ADMIN_USERNAME && password === process.env.ADMIN_PASSWORD) {
-    console.log('Login successful')
-    const token = jwt.sign(
-      { username },
-      process.env.JWT_SECRET,
-      { expiresIn: '24h' }
-    )
+  try {
+    const { username, password } = req.body
+
+    if (username !== process.env.ADMIN_USERNAME || password !== process.env.ADMIN_PASSWORD) {
+      return res.status(401).json({ error: 'Invalid credentials' })
+    }
+
+    const token = generateToken({ username })
     res.json({ token })
-  } else {
-    console.log('Login failed: Invalid credentials')
-    res.status(401).json({ 
-      error: 'Invalid credentials',
-      message: '用户名或密码错误'
-    })
+  } catch (error) {
+    console.error('Login error:', error)
+    res.status(500).json({ error: 'Login failed' })
+  }
+})
+
+// 添加刷新 token 的路由
+app.post('/api/auth/refresh', authenticateToken, (req, res) => {
+  try {
+    const newToken = generateToken(req.user)
+    res.json({ token: newToken })
+  } catch (error) {
+    console.error('Token refresh error:', error)
+    res.status(500).json({ error: 'Failed to refresh token' })
   }
 })
 
@@ -188,6 +239,7 @@ app.get('/api/memos', async (req, res) => {
   try {
     const memos = await Memo.find()
       .sort({ createdAt: -1 })
+      .lean()
       .exec()
     res.json(memos)
   } catch (error) {
@@ -196,30 +248,82 @@ app.get('/api/memos', async (req, res) => {
   }
 })
 
+// 修改 Memo 模型
+const memoSchema = new mongoose.Schema({
+  content: {
+    raw: String,
+    html: String,
+    text: String
+  },
+  resources: [{
+    url: String,
+    name: String,
+    type: String,
+    size: Number
+  }],
+  tags: [String],
+  visibility: {
+    type: String,
+    default: 'PUBLIC'
+  },
+  userId: String,
+  createdAt: String,
+  updatedAt: String
+})
+
+// const Memo = mongoose.model('Memo', memoSchema)
+
+// 创建 memo
 app.post('/api/memos', async (req, res) => {
   try {
-    const { content, resources = [] } = req.body
-    const processedContent = processContent(content)
+    const { content, resources, tags } = req.body
     
     // 创建 ISO 格式的时间字符串
     const now = new Date()
     const cstTime = new Date(now.getTime() + (8 * 60 * 60 * 1000))
     const timeStr = cstTime.toISOString().replace('Z', '+08:00')
     
-    const memo = new Memo({
-      content: processedContent,
-      userId: '1',
+    // 确保 resources 是数组并且格式正确
+    const processedResources = Array.isArray(resources) ? resources.map(resource => ({
+      url: String(resource.url),
+      name: String(resource.name),
+      type: String(resource.type),
+      size: Number(resource.size)
+    })) : []
+
+    // 创建新的 memo 文档
+    const memo = {
+      content: {
+        raw: content,
+        html: marked(content),
+        text: content
+      },
+      resources: processedResources,
+      tags: Array.isArray(tags) ? tags : [],
       visibility: 'PUBLIC',
-      resources: resources,
+      userId: '1',
       createdAt: timeStr,
       updatedAt: timeStr
+    }
+
+    // 打印调试信息
+    console.log('Creating memo with:', {
+      content: memo.content,
+      resources: JSON.stringify(memo.resources, null, 2),
+      tagsCount: memo.tags.length
     })
-    
-    const savedMemo = await memo.save()
+
+    // 使用 create 方法创建文档
+    const savedMemo = await Memo.create(memo)
     res.json(savedMemo)
   } catch (error) {
     console.error('Error creating memo:', error)
-    res.status(500).json({ error: 'Failed to create memo' })
+    // 添加更详细的错误信息
+    res.status(500).json({ 
+      error: 'Failed to create memo',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 
@@ -317,28 +421,23 @@ app.get('/api/memos/stats/:year/:month', async (req, res) => {
   }
 })
 
-// 修改获取指定日期记录的路由
+// 按日期获取 memos
 app.get('/api/memos/date/:date', async (req, res) => {
   try {
-    // 使用字符串匹配查询
-    const datePrefix = req.params.date // 形如 "2025-01-20"
-    const startTimeStr = `${datePrefix}T00:00:00+08:00`
-    const endTimeStr = `${datePrefix}T23:59:59.999+08:00`
-    
-    console.log('Querying date range:', {
-      date: datePrefix,
-      startTimeStr,
-      endTimeStr
-    })
+    const date = new Date(req.params.date)
+    const nextDate = new Date(date)
+    nextDate.setDate(date.getDate() + 1)
     
     const memos = await Memo.find({
       createdAt: {
-        $gte: startTimeStr,
-        $lte: endTimeStr
+        $gte: date.toISOString(),
+        $lt: nextDate.toISOString()
       }
-    }).sort({ createdAt: -1 })
+    })
+    .sort({ createdAt: -1 })
+    .lean()
+    .exec()
     
-    console.log(`Found ${memos.length} memos for date ${datePrefix}`)
     res.json(memos)
   } catch (error) {
     console.error('Error fetching memos by date:', error)
@@ -346,58 +445,53 @@ app.get('/api/memos/date/:date', async (req, res) => {
   }
 })
 
-// 4. 认证中间件
-const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1]
-  
-  if (!token) {
-    return res.status(401).json({ error: 'No token provided' })
-  }
-  
-  jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
-    if (err) {
-      return res.status(403).json({ error: 'Invalid token' })
-    }
-    req.user = user
-    next()
-  })
-}
-
 // 5. 需要认证的 API 路由
 app.put('/api/memos/:id', authenticateToken, async (req, res) => {
   try {
-    const { content, resources } = req.body
-    
-    if (!content || typeof content !== 'string') {
-      return res.status(400).json({ error: '内容不能为空' })
-    }
-    
-    const processedContent = processContent(content)
-    
-    // 创建 ISO 格式的时间字符串
+    const { id } = req.params
+    const { content, resources = [], tags = [] } = req.body
+
+    // 处理资源数据
+    const processedResources = Array.isArray(resources) ? resources.map(resource => ({
+      url: String(resource.url),
+      name: String(resource.name),
+      type: String(resource.type),
+      size: Number(resource.size)
+    })) : []
+
+    // 创建更新时间
     const now = new Date()
     const cstTime = new Date(now.getTime() + (8 * 60 * 60 * 1000))
     const timeStr = cstTime.toISOString().replace('Z', '+08:00')
-    
-    const memo = await Memo.findByIdAndUpdate(
-      req.params.id,
-      { 
-        content: processedContent,
-        resources: resources || [],
+
+    // 更新 memo
+    const updatedMemo = await Memo.findByIdAndUpdate(
+      id,
+      {
+        content: {
+          raw: content,
+          html: marked(content),
+          text: content
+        },
+        resources: processedResources,
+        tags: Array.isArray(tags) ? tags : [],
         updatedAt: timeStr
       },
-      { new: true }
+      { new: true, runValidators: true }
     )
-    
-    if (!memo) {
-      return res.status(404).json({ error: '记录不存在' })
+
+    if (!updatedMemo) {
+      return res.status(404).json({ error: 'Memo not found' })
     }
-    
-    res.json(memo)
+
+    res.json(updatedMemo)
   } catch (error) {
     console.error('Error updating memo:', error)
-    res.status(500).json({ error: '更新失败' })
+    res.status(500).json({
+      error: 'Failed to update memo',
+      details: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    })
   }
 })
 
